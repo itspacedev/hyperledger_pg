@@ -2,10 +2,9 @@ package chaincode
 
 import (
 	"encoding/json"
-	"fmt"
-	"github.com/hyperledger/fabric-chaincode-go/pkg/cid"
 	"github.com/hyperledger/fabric-contract-api-go/contractapi"
 	"strconv"
+	"strings"
 )
 
 // SmartContract provides functions for managing an Asset
@@ -13,367 +12,158 @@ type SmartContract struct {
 	contractapi.Contract
 }
 
-// Asset describes basic details of what makes up a simple asset
-// Insert struct field in alphabetic order => to achieve determinism across languages
-// golang keeps the order when marshal to json but doesn't order automatically
-//type Asset struct {
-//	AppraisedValue int    `json:"AppraisedValue"`
-//	Color          string `json:"Color"`
-//	ID             string `json:"ID"`
-//	Owner          string `json:"Owner"`
-//	Size           int    `json:"Size"`
-//	Creator        string `json:"Creator"`
-//}
+type Company struct {
+	ID      int     `json:"ID"`
+	Name    string  `json:"Name"`
+	Balance float64 `json:"Balance"`
+}
+
+// Ven. return fmt.Errorf("failed to put to world state. %v", err)
+
+const index_company = "company~companyid"
+const index_product = "product~productid"
 
 type Product struct {
-	HashID   string  `json:"HashID"`
-	ID       int     `json:"ID"`
-	Title    string  `json:"Title"`
-	Price    float64 `json:"Price"`
-	Quantity int     `json:"Quantity"`
-}
-
-type TransactionLog struct {
-	HashID      string  `json:"HashID"`
-	Seller      string  `json:"Seller"`
-	Buyer       string  `json:"Buyer"`
-	ProductID   int     `json:"ProductID"`
-	TotalAmount float64 `json:"Total Amount"`
-}
-
-type CompanyBalance struct {
-	HashID    string  `json:"HashID"`
+	ID        int     `json:"ID"`
 	CompanyID int     `json:"CompanyID"`
-	Balance   float64 `json:"Balance"`
-}
-
-type SystemInfo struct {
-	HashID    string `json:"HashID"`
-	LastLogId int    `json:"Last Log Id"`
-}
-
-// Get the name of the company
-// If Org1 calls a smart contract, it should return "Media Market Shop"
-// If Org2 calls a smart contract, it should return "Kirill Coffee Shop"
-func getCompanyName(ctx contractapi.TransactionContextInterface) string {
-	// Get the Client ID object
-	id, err := cid.New(ctx.GetStub())
-	if err != nil {
-		// Handle error
-		return "[Error 1]"
-	}
-	mspId, err := id.GetMSPID()
-	if err != nil {
-		// Handle error
-		return "[Error 2]"
-	}
-	var organizationName string
-	switch mspId {
-	case "Org1MSP":
-		organizationName = "Media Market Shop"
-	case "Org2MSP":
-		organizationName = "Kirill Coffee Shop"
-	default:
-		organizationName = "[Unknown Company]: " + mspId
-	}
-	return organizationName
+	Title     string  `json:"Title"`
+	Price     float64 `json:"Price"`
+	Quantity  int     `json:"Quantity"`
 }
 
 // InitLedger adds a base set of assets to the ledger
+// 1. Create 2 companies
 func (s *SmartContract) InitLedger(ctx contractapi.TransactionContextInterface) error {
-
-	// var companyName string = getCompanyName(ctx)
-
-	// Write products to the state
-	products := []Product{
-		{HashID: "product_1", ID: 1, Title: "Sony Playstation 4", Price: 450, Quantity: 3},
-		{HashID: "product_2", ID: 2, Title: "Coffee Machine", Price: 120, Quantity: 13},
-		{HashID: "product_3", ID: 3, Title: "Plasma TV", Price: 350, Quantity: 7},
+	// Create 2 companies
+	companies := []Company{
+		{ID: 1, Name: "Kirill Company LTD", Balance: 1300.0},
+		{ID: 2, Name: "Veniamin Holding", Balance: 1200.31},
 	}
-	for _, product := range products {
-		productJson, err := json.Marshal(product)
+	for _, company := range companies {
+		companyJson, err := json.Marshal(company)
 		if err != nil {
 			return err
 		}
-		err = ctx.GetStub().PutState(product.HashID, productJson)
+		companyStateKey := strings.Join([]string{"company", strconv.Itoa(company.ID)}, "_")
+		err = ctx.GetStub().PutState(companyStateKey, companyJson)
 		if err != nil {
-			return fmt.Errorf("failed to put to world state. %v", err)
+			return err
+		}
+		companyCompositeKey, err := ctx.GetStub().CreateCompositeKey(index_company, []string{"company", strconv.Itoa(company.ID)})
+		if err != nil {
+			return err
+		}
+		emptyValue := []byte{0x00}
+		err = ctx.GetStub().PutState(companyCompositeKey, emptyValue)
+		if err != nil {
+			return err
 		}
 	}
+	return nil
+}
 
-	// Write system info to the state
-	systemInfo := SystemInfo{
-		HashID:    "system_info",
-		LastLogId: 0,
+// GetCompanies Get information of all companies
+func (s *SmartContract) GetCompanies(ctx contractapi.TransactionContextInterface) ([]*Company, error) {
+	// Execute a key range query on all keys starting with 'company'
+	resultIterator, err := ctx.GetStub().GetStateByPartialCompositeKey(index_company, []string{"company"})
+	if err != nil {
+		return nil, err
 	}
-	systemInfoJson, err := json.Marshal(systemInfo)
+	defer resultIterator.Close()
+
+	var companies []*Company
+
+	for resultIterator.HasNext() {
+		responseRange, err := resultIterator.Next()
+		if err != nil {
+			return nil, err
+		}
+		_, compositeKeyParts, err := ctx.GetStub().SplitCompositeKey(responseRange.Key)
+		if err != nil {
+			return nil, err
+		}
+		if len(compositeKeyParts) > 1 {
+			recordId := compositeKeyParts[1]
+			companyStateKey := strings.Join([]string{"company", recordId}, "_")
+			companyJson, err := ctx.GetStub().GetState(companyStateKey)
+			if err != nil {
+				return nil, err
+			}
+			var company Company
+			err = json.Unmarshal(companyJson, &company)
+			if err != nil {
+				return nil, err
+			}
+			companies = append(companies, &company)
+		}
+	}
+	return companies, nil
+}
+
+// AddProduct Add a new product
+func (s *SmartContract) AddProduct(ctx contractapi.TransactionContextInterface, productID int, companyID int, title string, price float64, quantity int) error {
+	product := &Product{
+		ID:        productID,
+		CompanyID: companyID,
+		Title:     title,
+		Price:     price,
+		Quantity:  quantity,
+	}
+	productJson, err := json.Marshal(product)
 	if err != nil {
 		return err
 	}
-	err = ctx.GetStub().PutState(systemInfo.HashID, systemInfoJson)
+	productStateKey := strings.Join([]string{"product", strconv.Itoa(product.ID)}, "_")
+	err = ctx.GetStub().PutState(productStateKey, productJson)
 	if err != nil {
-		return fmt.Errorf("failed to put system info the to world state. %v", err)
+		return err
 	}
-
-	// Write company balances to the state
-	companiesBalances := []CompanyBalance{
-		{HashID: "balance_1", CompanyID: 1, Balance: 3425.100},
-		{HashID: "balance_2", CompanyID: 2, Balance: 400.50},
+	productIndexKey, err := ctx.GetStub().CreateCompositeKey(index_product, []string{"product", strconv.Itoa(product.ID)})
+	if err != nil {
+		return err
 	}
-	for _, companyBalance := range companiesBalances {
-		companyBalanceJson, err := json.Marshal(companyBalance)
-		if err != nil {
-			return err
-		}
-		err = ctx.GetStub().PutState(companyBalance.HashID, companyBalanceJson)
-		if err != nil {
-			return fmt.Errorf("failed to put company balance to world state. %v", err)
-		}
+	emptyValue := []byte{0x00}
+	err = ctx.GetStub().PutState(productIndexKey, emptyValue)
+	if err != nil {
+		return err
 	}
 	return nil
 }
 
-// Get System Info
-func (s *SmartContract) GetSystemInfo(ctx contractapi.TransactionContextInterface) (*SystemInfo, error) {
-	systemInfoJSON, err := ctx.GetStub().GetState("system_info")
+// GetProducts Get information of all products
+func (s *SmartContract) GetProducts(ctx contractapi.TransactionContextInterface) ([]*Product, error) {
+	// Execute a key range query on all keys starting with 'company'
+	resultIterator, err := ctx.GetStub().GetStateByPartialCompositeKey(index_product, []string{"product"})
 	if err != nil {
-		return nil, fmt.Errorf("failed to read from world state: %v", err)
+		return nil, err
 	}
-	if systemInfoJSON == nil {
-		return nil, fmt.Errorf("the asset %s does not exist", "systemInfoJSON")
-	}
-	var systemInfo SystemInfo
-	err = json.Unmarshal(systemInfoJSON, &systemInfo)
-	if err != nil {
-		return nil, fmt.Errorf("%v", err)
-	}
-	return &systemInfo, nil
-}
+	defer resultIterator.Close()
 
-// Get all products
-func (s *SmartContract) GetAllProducts(ctx contractapi.TransactionContextInterface) ([]*Product, error) {
 	var products []*Product
-	keys := [3]string{"product_1", "product_2", "product_3"}
-	for i := 0; i < len(keys); i++ {
-		productJson, err := ctx.GetStub().GetState(keys[i])
+
+	for resultIterator.HasNext() {
+		responseRange, err := resultIterator.Next()
 		if err != nil {
-			return nil, fmt.Errorf("%v", err)
+			return nil, err
 		}
-		var product Product
-		err = json.Unmarshal(productJson, &product)
+		_, compositeKeyParts, err := ctx.GetStub().SplitCompositeKey(responseRange.Key)
 		if err != nil {
-			return nil, fmt.Errorf("%v", err)
+			return nil, err
 		}
-		products = append(products, &product)
+		if len(compositeKeyParts) > 1 {
+			recordId := compositeKeyParts[1]
+			productStateKey := strings.Join([]string{"product", recordId}, "_")
+			productJson, err := ctx.GetStub().GetState(productStateKey)
+			if err != nil {
+				return nil, err
+			}
+			var product Product
+			err = json.Unmarshal(productJson, &product)
+			if err != nil {
+				return nil, err
+			}
+			products = append(products, &product)
+		}
 	}
 	return products, nil
 }
-
-// GetAllAssets returns all assets found in world state
-func (s *SmartContract) GetAllCompaniesBalances(ctx contractapi.TransactionContextInterface) ([]*CompanyBalance, error) {
-	var companiesBalances []*CompanyBalance
-	keys := [2]string{"balance_1", "balance_2"}
-	for i := 0; i < len(keys); i++ {
-		companyBalanceJson, err := ctx.GetStub().GetState(keys[i])
-		if err != nil {
-			return nil, fmt.Errorf("%v", err)
-		}
-		var companyBalance CompanyBalance
-		err = json.Unmarshal(companyBalanceJson, &companyBalance)
-		if err != nil {
-			return nil, fmt.Errorf("%v", err)
-		}
-		companiesBalances = append(companiesBalances, &companyBalance)
-	}
-	return companiesBalances, nil
-}
-
-// Buy a product
-func (s *SmartContract) BuyProduct(ctx contractapi.TransactionContextInterface) error {
-	systemInfoJSON, err := ctx.GetStub().GetState("system_info")
-	if err != nil {
-		return fmt.Errorf("failed to read from world state: %v", err)
-	}
-	if systemInfoJSON == nil {
-		return fmt.Errorf("the asset %s does not exist", "systemInfoJSON")
-	}
-	var systemInfo SystemInfo
-	err = json.Unmarshal(systemInfoJSON, &systemInfo)
-	if err != nil {
-		return fmt.Errorf("%v", err)
-	}
-
-	// Not real data, just testing here for now
-	tx := TransactionLog{
-		HashID:      "tx_" + strconv.Itoa(systemInfo.LastLogId+1),
-		Seller:      "Kto prodal tovar",
-		Buyer:       "Kto kupil tovar",
-		ProductID:   2,
-		TotalAmount: 1.44,
-	}
-	txJSON, err := json.Marshal(tx)
-	if err != nil {
-		return fmt.Errorf("%v", err)
-	}
-	err = ctx.GetStub().PutState(tx.HashID, txJSON)
-
-	systemInfo.LastLogId = systemInfo.LastLogId + 1
-	systemInfoJson, err := json.Marshal(systemInfo)
-	if err != nil {
-		return fmt.Errorf("%v", err)
-	}
-	err = ctx.GetStub().PutState("system_info", systemInfoJson)
-	if err != nil {
-		return fmt.Errorf("%v", err)
-	}
-	return nil
-}
-
-// Get all transactions logs
-func (s *SmartContract) GetTransactionLogs(ctx contractapi.TransactionContextInterface) ([]*TransactionLog, error) {
-	systemInfoJSON, err := ctx.GetStub().GetState("system_info")
-	if err != nil {
-		return nil, fmt.Errorf("failed to read from world state: %v", err)
-	}
-	if systemInfoJSON == nil {
-		return nil, fmt.Errorf("the asset %s does not exist", "systemInfoJSON")
-	}
-	var systemInfo SystemInfo
-	err = json.Unmarshal(systemInfoJSON, &systemInfo)
-	if err != nil {
-		return nil, fmt.Errorf("%v", err)
-	}
-	if systemInfo.LastLogId < 1 {
-		return nil, nil
-	}
-	var logs []*TransactionLog
-	for i := 1; i <= systemInfo.LastLogId; i++ {
-		logJSON, err := ctx.GetStub().GetState("tx_" + strconv.Itoa(i))
-		if err != nil {
-			return nil, fmt.Errorf("%v", err)
-		}
-		var log TransactionLog
-		err = json.Unmarshal(logJSON, &log)
-		if err != nil {
-			return nil, fmt.Errorf("%v", err)
-		}
-		logs = append(logs, &log)
-	}
-	return logs, nil
-}
-
-//// CreateAsset issues a new asset to the world state with given details.
-//func (s *SmartContract) CreateAsset(ctx contractapi.TransactionContextInterface, id string, color string, size int, owner string, appraisedValue int) error {
-//	exists, err := s.AssetExists(ctx, id)
-//	if err != nil {
-//		return err
-//	}
-//	if exists {
-//		return fmt.Errorf("the asset %s already exists", id)
-//	}
-//
-//	asset := Asset{
-//		ID:             id,
-//		Color:          color,
-//		Size:           size,
-//		Owner:          owner,
-//		AppraisedValue: appraisedValue,
-//	}
-//	assetJSON, err := json.Marshal(asset)
-//	if err != nil {
-//		return err
-//	}
-//
-//	return ctx.GetStub().PutState(id, assetJSON)
-//}
-//
-//// ReadAsset returns the asset stored in the world state with given id.
-//func (s *SmartContract) ReadAsset(ctx contractapi.TransactionContextInterface, id string) (*Asset, error) {
-//	assetJSON, err := ctx.GetStub().GetState(id)
-//	if err != nil {
-//		return nil, fmt.Errorf("failed to read from world state: %v", err)
-//	}
-//	if assetJSON == nil {
-//		return nil, fmt.Errorf("the asset %s does not exist", id)
-//	}
-//
-//	var asset Asset
-//	err = json.Unmarshal(assetJSON, &asset)
-//	if err != nil {
-//		return nil, err
-//	}
-//
-//	return &asset, nil
-//}
-//
-//// UpdateAsset updates an existing asset in the world state with provided parameters.
-//func (s *SmartContract) UpdateAsset(ctx contractapi.TransactionContextInterface, id string, color string, size int, owner string, appraisedValue int) error {
-//	exists, err := s.AssetExists(ctx, id)
-//	if err != nil {
-//		return err
-//	}
-//	if !exists {
-//		return fmt.Errorf("the asset %s does not exist", id)
-//	}
-//
-//	// overwriting original asset with new asset
-//	asset := Asset{
-//		ID:             id,
-//		Color:          color,
-//		Size:           size,
-//		Owner:          owner,
-//		AppraisedValue: appraisedValue,
-//	}
-//	assetJSON, err := json.Marshal(asset)
-//	if err != nil {
-//		return err
-//	}
-//
-//	return ctx.GetStub().PutState(id, assetJSON)
-//}
-//
-//// DeleteAsset deletes an given asset from the world state.
-//func (s *SmartContract) DeleteAsset(ctx contractapi.TransactionContextInterface, id string) error {
-//	exists, err := s.AssetExists(ctx, id)
-//	if err != nil {
-//		return err
-//	}
-//	if !exists {
-//		return fmt.Errorf("the asset %s does not exist", id)
-//	}
-//
-//	return ctx.GetStub().DelState(id)
-//}
-//
-//// AssetExists returns true when asset with given ID exists in world state
-//func (s *SmartContract) AssetExists(ctx contractapi.TransactionContextInterface, id string) (bool, error) {
-//	assetJSON, err := ctx.GetStub().GetState(id)
-//	if err != nil {
-//		return false, fmt.Errorf("failed to read from world state: %v", err)
-//	}
-//
-//	return assetJSON != nil, nil
-//}
-//
-//// TransferAsset updates the owner field of asset with given id in world state, and returns the old owner.
-//func (s *SmartContract) TransferAsset(ctx contractapi.TransactionContextInterface, id string, newOwner string) (string, error) {
-//	asset, err := s.ReadAsset(ctx, id)
-//	if err != nil {
-//		return "", err
-//	}
-//
-//	oldOwner := asset.Owner
-//	asset.Owner = newOwner
-//
-//	assetJSON, err := json.Marshal(asset)
-//	if err != nil {
-//		return "", err
-//	}
-//
-//	err = ctx.GetStub().PutState(id, assetJSON)
-//	if err != nil {
-//		return "", err
-//	}
-//
-//	return oldOwner, nil
-//}

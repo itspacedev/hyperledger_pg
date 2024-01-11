@@ -78,11 +78,47 @@ function buyProduct() {
       -c '{"function":"BuyProduct","Args":[]}'
 }
 
+function createToy() {
+    # Create a toy
+    setEnvironementorg1
+    echo "---------- ORG1 CreateToy ----------"
+    peer chaincode invoke -o localhost:7050 --ordererTLSHostnameOverride orderer.example.com --tls \
+      --cafile "${PWD}/organizations/ordererOrganizations/example.com/orderers/orderer.example.com/msp/tlscacerts/tlsca.example.com-cert.pem" \
+      -C mychannel -n basic --peerAddresses localhost:7051 \
+      --tlsRootCertFiles "${PWD}/organizations/peerOrganizations/org1.example.com/peers/peer0.org1.example.com/tls/ca.crt" \
+      --peerAddresses localhost:9051 \
+      --tlsRootCertFiles "${PWD}/organizations/peerOrganizations/org2.example.com/peers/peer0.org2.example.com/tls/ca.crt" \
+      -c '{"function":"CreateToy","Args":["toy1", "orange", "Kool Orange elephant toy for babies"]}'
+
+    peer chaincode invoke -o localhost:7050 --ordererTLSHostnameOverride orderer.example.com --tls \
+          --cafile "${PWD}/organizations/ordererOrganizations/example.com/orderers/orderer.example.com/msp/tlscacerts/tlsca.example.com-cert.pem" \
+          -C mychannel -n basic --peerAddresses localhost:7051 \
+          --tlsRootCertFiles "${PWD}/organizations/peerOrganizations/org1.example.com/peers/peer0.org1.example.com/tls/ca.crt" \
+          --peerAddresses localhost:9051 \
+          --tlsRootCertFiles "${PWD}/organizations/peerOrganizations/org2.example.com/peers/peer0.org2.example.com/tls/ca.crt" \
+          -c '{"function":"CreateToy","Args":["toy2", "orange", "Kool Orange kitty toy for kids"]}'
+}
+
+function displayToys() {
+    # Display Toys
+    setEnvironementorg1
+    echo "---------- ORG1 DisplayToys ----------"
+    peer chaincode query -C mychannel -n basic -c '{"Args":["DisplayToys"]}'
+}
+
 function showTransactionLogs() {
     # Get transaction logs (Org1)
     setEnvironementorg1
     echo "---------- ORG1 GetTransactionLogs ----------"
     peer chaincode query -C mychannel -n basic -c '{"Args":["GetTransactionLogs"]}'
+}
+
+# ===== NEW CODE =====
+function GetCompanies() {
+    # Get Companies
+    setEnvironementorg1
+    echo "---------- ORG1 Get Companies ----------"
+    peer chaincode query -C mychannel -n basic -c '{"Args":["GetCompanies"]}'
 }
 
 ## Parse mode from command line arguments
@@ -97,11 +133,17 @@ fi
 # Call a function based on mode
 if [ "${MODE}" == "init" ]; then
     initFunction
+elif [ "${MODE}" == "get_companies" ]; then
+    GetCompanies
+elif [ "${MODE}" == "create_toy" ]; then
+    createToy
+elif [ "${MODE}" == "display_toys" ]; then
+    displayToys
 elif [ "${MODE}" == "buy" ]; then
     buyProduct
 elif [ "${MODE}" == "logs" ]; then
     showTransactionLogs
 else
-    echo "Available modes: init, buy, logs"
+    echo "Available modes: init, buy, logs, create_toy"
     exit 1
 fi
