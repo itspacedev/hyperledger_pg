@@ -1,5 +1,8 @@
 <?php
 
+// To run this script, run in command line:
+// php ./contract.php
+
 class SmartContract {
 
     private $debug = true;
@@ -155,9 +158,9 @@ $smartContract = new SmartContract();
 $smartContract->displayCompanies();
 
 // 2. Add products
-//$smartContract->addProduct(1, 1, 'Sony Playstation 5 - Gaming Console', 300.50, 5);
-//$smartContract->addProduct(2, 2, 'PS Game - The Last of Us 2', 42.22, 15);
-//$smartContract->addProduct(2, 1, 'PS Game - The Last of Us 2', 35, 4);
+$smartContract->addProduct(1, 1, 'Sony Playstation 5 - Gaming Console', 300.50, 5);
+$smartContract->addProduct(2, 2, 'PS Game - The Last of Us 2', 42.22, 15);
+$smartContract->addProduct(2, 1, 'PS Game - The Last of Us 2', 35, 4);
 
 // 3. Display products
 $smartContract->displayProducts();
