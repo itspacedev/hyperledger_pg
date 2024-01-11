@@ -21,7 +21,13 @@ class SmartContract {
     ) {
         if ($queryType === 'QUERY') {
             // Read from blockchain
-            $command = '\'{"Args":["'.$commandName.'"]}\'';
+            $allParams = [$commandName];
+            if (count($commandParams) > 0) {
+                foreach ($commandParams as $commandParam) {
+                    $allParams[] = $commandParam;
+                }
+            }
+            $command = '\'{"Args":["'.implode('","', $allParams).'"]}\'';
         } elseif ($queryType === 'INVOKE') {
             // Change state in blockchain
             $command = '\'{"function":"'.$commandName.'", "Args":["'.implode('","', $commandParams).'"]}\'';
@@ -96,15 +102,51 @@ class SmartContract {
              print_r($products);
         }
 
-        echo PHP_EOL;
-        echo '===== Products ====='.PHP_EOL;
+//        echo PHP_EOL;
+//        echo '===== Products ====='.PHP_EOL;
 
-        $outputIndex = 1;
-        foreach ($products as $product) {
-            echo $outputIndex.') '.$product['Title'].' ('.$product['Price'].' RUB - '.$product['Quantity'].' items) [Company #'.$product['CompanyID'].']'.PHP_EOL;
-            $outputIndex++;
+//        $outputIndex = 1;
+//        foreach ($products as $product) {
+//            echo $outputIndex.') '.$product['Title'].' ('.$product['Price'].' RUB - '.$product['Quantity'].' items) [Company #'.$product['CompanyID'].']'.PHP_EOL;
+//            $outputIndex++;
+//        }
+//        echo PHP_EOL;
+    }
+
+    /**
+     * Display information about products of a company
+     * @return void
+     */
+    public function displayCompanyProducts($companyId) {
+        $params = [$companyId];
+        $output = $this->executeCommand($companyId, 'QUERY', 'GetCompanyProducts', $params);
+        $output = trim($output);
+        $products = json_decode($output, true);
+
+        if ($this->debug) {
+            print_r($products);
         }
-        echo PHP_EOL;
+
+//        echo PHP_EOL;
+//        echo '===== Products ====='.PHP_EOL;
+//
+//        $outputIndex = 1;
+//        foreach ($products as $product) {
+//            echo $outputIndex.') '.$product['Title'].' ('.$product['Price'].' RUB - '.$product['Quantity'].' items) [Company #'.$product['CompanyID'].']'.PHP_EOL;
+//            $outputIndex++;
+//        }
+//        echo PHP_EOL;
+    }
+
+    // BuyProduct(buyerCompanyID int, sellerCompanyID int, productID int, quantity int) error {
+    public function buyProduct(
+        $buyerCompanyId,
+        $sellerCompanyId,
+        $productId,
+        $quantity
+    ) {
+        $params = [$buyerCompanyId, $sellerCompanyId, $productId, $quantity];
+        $output = $this->executeCommand($buyerCompanyId, 'INVOKE', 'BuyProduct', $params);
     }
 }
 
@@ -113,8 +155,34 @@ $smartContract = new SmartContract();
 $smartContract->displayCompanies();
 
 // 2. Add products
-$smartContract->addProduct(1, 1, 'Sony Playstation 5 - Gaming Console', 300.50, 5);
-$smartContract->addProduct(2, 2, 'PS Game - The Last of Us 2', 42.22, 15);
+//$smartContract->addProduct(1, 1, 'Sony Playstation 5 - Gaming Console', 300.50, 5);
+//$smartContract->addProduct(2, 2, 'PS Game - The Last of Us 2', 42.22, 15);
+//$smartContract->addProduct(2, 1, 'PS Game - The Last of Us 2', 35, 4);
 
 // 3. Display products
 $smartContract->displayProducts();
+
+// 4. Display products for company 1
+$smartContract->displayCompanyProducts(1);
+
+// 5. Display products for company 2
+$smartContract->displayCompanyProducts(2);
+
+// 6. Buy a product
+// Buyer - 1
+// Seller - 2
+// Product - 2
+// Quantity - 3
+$smartContract->buyProduct(1, 2, 2, 3);
+
+// 7. Display companies
+$smartContract->displayCompanies();
+
+// 8. Display products
+$smartContract->displayProducts();
+
+// 9. Display products for company 1
+$smartContract->displayCompanyProducts(1);
+
+// 10. Display products for company 2
+$smartContract->displayCompanyProducts(2);
