@@ -5,7 +5,7 @@
 
 class SmartContract {
 
-    private $debug = true;
+    private $debug = false;
     private $delay = 3;
 
     /**
@@ -51,7 +51,7 @@ class SmartContract {
         // Если сразу делать выборку, может вернуть пустой массив
         // Короче надо подождать скоко-то, я поставил 3 секунды
         if ($queryType === 'INVOKE') {
-            echo '===> WAIT '.$this->delay.' seconds...'.PHP_EOL;
+            //echo '===> WAIT '.$this->delay.' seconds...'.PHP_EOL;
             sleep($this->delay);
         }
         return $output;
@@ -65,17 +65,18 @@ class SmartContract {
         $output = $this->executeCommand(1, 'QUERY', 'GetCompanies');
         $output = trim($output);
         $companies = json_decode($output, true);
+        return $companies;
 
-        if ($this->debug) {
-             print_r($companies);
-        }
-
-        echo PHP_EOL;
-        echo '===== Companies ====='.PHP_EOL;
-        foreach ($companies as $company) {
-            echo $company['ID'].') '.$company['Name'].', Balance: '.$company['Balance'].' RUB'.PHP_EOL;
-        }
-        echo PHP_EOL;
+//        if ($this->debug) {
+//             print_r($companies);
+//        }
+//
+//        echo PHP_EOL;
+//        echo '===== Companies ====='.PHP_EOL;
+//        foreach ($companies as $company) {
+//            echo $company['ID'].') '.$company['Name'].', Balance: '.$company['Balance'].' RUB'.PHP_EOL;
+//        }
+//        echo PHP_EOL;
     }
 
     /**
@@ -154,38 +155,53 @@ class SmartContract {
 }
 
 $smartContract = new SmartContract();
-// 1. Display companies
-$smartContract->displayCompanies();
 
-// 2. Add products
-$smartContract->addProduct(1, 1, 'Sony Playstation 5 - Gaming Console', 300.50, 5);
-$smartContract->addProduct(2, 2, 'PS Game - The Last of Us 2', 42.22, 15);
-$smartContract->addProduct(2, 1, 'PS Game - The Last of Us 2', 35, 4);
+// Какой метод вызывать
+$method_to_call = $_POST['method_to_call'];
+$response = null;
+if ($method_to_call === 'get_companies') {
+    $response = $smartContract->displayCompanies();
+}
+if ($response !== null) {
+    echo json_encode([
+       'status' => 1,
+       'data' => $response
+    ]);
+} else {
+    echo json_encode([
+        'status' => 0
+    ]);
+}
 
-// 3. Display products
-$smartContract->displayProducts();
-
-// 4. Display products for company 1
-$smartContract->displayCompanyProducts(1);
-
-// 5. Display products for company 2
-$smartContract->displayCompanyProducts(2);
-
-// 6. Buy a product
-// Buyer - 1
-// Seller - 2
-// Product - 2
-// Quantity - 3
-$smartContract->buyProduct(1, 2, 2, 3);
-
-// 7. Display companies
-$smartContract->displayCompanies();
-
-// 8. Display products
-$smartContract->displayProducts();
-
-// 9. Display products for company 1
-$smartContract->displayCompanyProducts(1);
-
-// 10. Display products for company 2
-$smartContract->displayCompanyProducts(2);
+//// 2. Add products
+//$smartContract->addProduct(1, 1, 'Sony Playstation 5 - Gaming Console', 300.50, 5);
+//$smartContract->addProduct(2, 2, 'PS Game - The Last of Us 2', 42.22, 15);
+//$smartContract->addProduct(2, 1, 'PS Game - The Last of Us 2', 35, 4);
+//
+//// 3. Display products
+//$smartContract->displayProducts();
+//
+//// 4. Display products for company 1
+//$smartContract->displayCompanyProducts(1);
+//
+//// 5. Display products for company 2
+//$smartContract->displayCompanyProducts(2);
+//
+//// 6. Buy a product
+//// Buyer - 1
+//// Seller - 2
+//// Product - 2
+//// Quantity - 3
+//$smartContract->buyProduct(1, 2, 2, 3);
+//
+//// 7. Display companies
+//$smartContract->displayCompanies();
+//
+//// 8. Display products
+//$smartContract->displayProducts();
+//
+//// 9. Display products for company 1
+//$smartContract->displayCompanyProducts(1);
+//
+//// 10. Display products for company 2
+//$smartContract->displayCompanyProducts(2);

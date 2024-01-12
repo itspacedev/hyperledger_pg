@@ -1,0 +1,73 @@
+<html>
+<head>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet" integrity="sha384-T3c6CoIi6uLrA9TneNEoa7RxnatzjcDSCmG1MXxSR1GAsXEV/Dwwykc2MPK8M2HN" crossorigin="anonymous">
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js" integrity="sha384-C6RzsynM9kWDrMNeT87bh95OGNyZPhcTNXj1NW7RuBCsyN/o0jlpcV8Qyq46cDfL" crossorigin="anonymous"></script>
+    <script type="text/javascript" src="https://cdnjs.cloudflare.com/ajax/libs/jquery/3.7.1/jquery.min.js"></script>
+    <script>
+        $(document).ready(function(){
+            let base_url = 'http://127.0.0.1:8123/contract.php';
+
+            $('#btn_showCompanies').on('click', function() {
+                $.ajax({
+                    type: 'POST',
+                    url : base_url,
+                    data: {
+                        method_to_call: "get_companies"
+                    },
+                    dataType: 'json'
+                }).done(function(response) {
+                    var html = '';
+                    html += '<b>Список компаний</b>';
+                    html += '<br/>'
+
+                    var companiesFound = false;
+                    if (response.status === 1) {
+                        let companiesList = response.data;
+                        if (companiesList.length > 0) {
+                            companiesFound = true;
+                            html += '<table class="table table-bordered">';
+                            html += '<thead>';
+                                html += '<tr>';
+                                    html += '<th>ID</th>';
+                                    html += '<th>Название компании</th>';
+                                    html += '<th>Баланс</th>';
+                                html += '</tr>';
+                            html += '</thead>';
+                            html += '<tbody>';
+                            $(companiesList).each(function(idx, company) {
+                                html += '<tr>';
+                                    html += '<td>'+company.ID+'</td>';
+                                    html += '<td>'+company.Name+'</td>';
+                                    html += '<td>'+company.Balance+'</td>';
+                                html += '</tr>';
+                            });
+                            html += '</tbody>';
+                            html += '</table>';
+                        }
+                    }
+                    if (!companiesFound) {
+                        html = '<h3>Нет компаний для вывода</h3>';
+                    }
+
+                    // 1. Удаляем старый контент в "output"
+                    $('#output').html('');
+
+                    // 2. Выводим новый html-код в "output"
+                    $('#output').html(html);
+                });
+            });
+        });
+    </script>
+</head>
+<body>
+    <div class="container">
+        <h1>Smart Contract Example</h1>
+        <hr/>
+        <button id="btn_showCompanies" class="btn btn-primary btn-sm">Click me</button>
+        <hr/>
+        <div id="output">
+
+        </div>
+    </div>
+</body>
+</html>
